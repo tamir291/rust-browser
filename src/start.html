@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="ru">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Поиск · DuckDuckGo</title>
+<style>
+:root{color-scheme:dark;--bg:#0d100e;--line:#373e38;--ink:#e6ebe2;--dim:#a4aca4;--accent:#dfbc72}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:13px "Lucida Console",Consolas,monospace}
+main{position:relative;isolation:isolate;min-height:100vh;display:grid;align-items:center;overflow:hidden;padding:clamp(20px,7vw,100px)}
+canvas{position:absolute;inset:0;width:100%;height:100%;z-index:-2;pointer-events:none}
+main::before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,#0d100e 5%,#0d100ee8 25%,#0d100e25 62%,transparent)}
+.terminal{width:min(100%,440px);border:1px solid var(--line);border-left:2px solid var(--accent);background:#111511ee}
+header{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;border-bottom:1px solid var(--line);color:var(--dim);font-size:11px;letter-spacing:.1em}
+header b{color:var(--accent);font-weight:400}
+.content{padding:clamp(15px,3vw,27px)}
+h1{font:700 clamp(26px,4vw,40px)/1.12 "Lucida Console",Consolas,monospace;letter-spacing:-.075em;margin:0 0 21px}
+form{display:flex;align-items:center;border:1px solid #596153;background:#0d100e;padding-left:11px}
+form:focus-within{border-color:var(--accent)}
+.prompt{color:var(--accent);font-weight:700}
+input{min-width:0;flex:1;padding:11px 8px;border:0;background:transparent;color:var(--ink);outline:none;font:inherit}
+input::placeholder{color:var(--dim)}
+button,a{font:inherit;color:var(--dim)}
+button{cursor:pointer}
+form button{align-self:stretch;padding:0 14px;border:0;border-left:1px solid var(--line);background:#292217;color:var(--accent)}
+form button:hover,form button:focus-visible{background:var(--accent);color:var(--bg)}
+footer{display:flex;justify-content:space-between;align-items:center;margin-top:12px}
+a{text-decoration:none}
+a:hover,a:focus-visible{color:var(--accent)}
+@media(max-width:650px){main{align-items:end;padding:20px 20px 12vh}main::before{background:linear-gradient(0deg,#0d100e 2%,transparent 75%)}}
+@media(max-height:320px){main{align-items:center;padding:16px}}
+.bookmarks{position:absolute;right:clamp(20px,5vw,78px);bottom:clamp(18px,4vh,40px);width:min(30vw,260px);border-top:1px solid var(--line);padding-top:8px}
+.bookmarks h2{font-size:10px;letter-spacing:.16em;margin:0 0 8px;color:var(--dim);font-weight:400}
+#cells{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;max-height:100px;overflow:auto;scrollbar-width:thin}
+#cells a{padding:5px 3px;min-width:0;min-height:38px;border:1px solid #4c4532;background:#11130feb;text-align:center;display:grid;gap:3px}
+#cells a:hover,#cells a:focus-visible{border-color:var(--accent);color:var(--accent)}
+#cells b{font-size:11px;font-weight:400;color:var(--accent)}
+#cells small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:8px}
+@media(max-width:650px){main{align-items:end;padding-bottom:18px;gap:12px}.bookmarks{position:static;width:min(100%,440px);align-self:start}}
+@font-face{font-family:Pixelify;src:url('/terminal.ttf') format('truetype');font-display:swap}
+h1{font-family:Pixelify,"Courier New",monospace;font-weight:600;letter-spacing:-.04em}
+header,.bookmarks h2,.telemetry{font-family:Pixelify,"Courier New",monospace;letter-spacing:.09em}
+.telemetry{display:grid;gap:3px;position:absolute;top:clamp(14px,4vh,30px);left:clamp(20px,7vw,100px);padding:7px 10px;border-left:1px solid #534936;color:#b1aaa0;background:#101310ab;line-height:1.15;font-size:clamp(10px,1.6vw,13px)}
+.telemetry b{color:#bba373;font-size:1.12em;font-weight:400}
+@media(max-height:350px){.telemetry{display:none}}
+ :root{--ui-font:Pixelify,Consolas,monospace} body,button,input,select,.tab button,#deck>button,header,h1,h2,.telemetry,#summary,strong{font-family:var(--ui-font)} </style>
+<main>
+  <canvas id="orbit" aria-hidden="true"></canvas>
+  <aside class="telemetry" aria-label="Условная телеметрия"><b id="callsign">КОНТУР-01</b><span id="signal">Ожидание сигнала</span></aside>
+  <section class="terminal" aria-labelledby="title">
+    <header><b>◆ ПОИСК</b><span>DUCKDUCKGO</span></header>
+    <div class="content">
+      <h1 id="title">Поиск в интернете</h1>
+      <form id="search" role="search" action="https://duckduckgo.com/" method="get">
+        <span class="prompt" aria-hidden="true">&gt;_</span>
+        <input id="query" name="q" type="search" aria-label="Запрос DuckDuckGo" placeholder="Введите запрос" autocomplete="off" required>
+        <button type="submit" aria-label="Искать">↵</button>
+      </form>
+      </div>
+  </section>
+  <aside class="bookmarks"><h2>ЗАКЛАДКИ</h2><div id="cells"></div></aside>
+</main>
+<script>
+(() => {
+  const canvas = document.querySelector('#orbit');
+  const ctx = canvas.getContext('2d');
+  const layer = document.createElement('canvas');
+  const globe = layer.getContext('2d');
+  const motion = matchMedia('(prefers-reduced-motion: reduce)');
+  const callsign = document.querySelector('#callsign');
+  const signal = document.querySelector('#signal');
+  let scene, timer, last = 0, phase = 0, clock = 0;
+  let fleet = [0], tracking, nextLock = 0, lastTelemetry = -1;
+  let active = true, animationEnabled = true;
+  let cells = [{url:'https://www.youtube.com/', name:'YouTube'}];
+
+  function showBookmarks() {
+    const container = document.querySelector('#cells');
+    container.replaceChildren();
+    for (const {url, name} of cells) {
+      const link = document.createElement('a');
+      const code = document.createElement('b');
+      const title = document.createElement('small');
+      link.href = url;
+      link.title = name;
+      code.textContent = name.replace(/^www\./, '').slice(0, 3).toUpperCase();
+      title.textContent = name;
+      link.append(code, title);
+      container.append(link);
+    }
+  }
+  window.setBookmarks = items => {
+    cells = items;
+    showBookmarks();
+  };
+  showBookmarks();
+
+  function layout() {
+    const w = canvas.clientWidth, h = canvas.clientHeight, ratio = devicePixelRatio;
+    canvas.width = layer.width = Math.round(w * ratio);
+    canvas.height = layer.height = Math.round(h * ratio);
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    globe.setTransform(ratio, 0, 0, ratio, 0, 0);
+    const narrow = w <= 650;
+    const x = w * (narrow ? .62 : .73), y = h * (narrow ? .31 : .46);
+    const r = Math.max(1, Math.min(w * (narrow ? .34 : .23), h * .34, 260));
+    const points = [];
+    for (let dy = -r; dy <= r; dy += 8) {
+      for (let dx = -r; dx <= r; dx += 8) {
+        const nx = dx / r, ny = dy / r;
+        if (nx * nx + ny * ny > 1) continue;
+        const z = Math.sqrt(1 - nx * nx - ny * ny);
+        points.push([x + dx, y + dy, Math.atan2(nx, z), ny, z]);
+      }
+    }
+    scene = {w,h,x,y,r,points};
+    planet();
+    draw();
+    schedule();
+  }
+
+  function planet() {
+    const {w,h,x,y,r,points} = scene;
+    globe.clearRect(0,0,w,h);
+    globe.font = '10px "Lucida Console", monospace';
+    globe.textAlign = 'center';
+    globe.textBaseline = 'middle';
+    globe.fillStyle = '#48463d';
+    for (const [px,py,longitude,latitude,z] of points) {
+      const theta = longitude + phase;
+      const relief = Math.sin(theta * 9 + Math.cos(latitude * 10) * 2) * Math.cos(latitude * 18 + theta * 5);
+      const intensity = Math.max(0, z * .49 + relief * .27 - latitude * .14);
+      globe.fillText(' .:+*#'[Math.min(5, Math.floor(intensity * 8))],px,py);
+    }
+    globe.strokeStyle = '#39362e';
+    globe.setLineDash([2,7]);
+    globe.beginPath();
+    globe.ellipse(x,y,r*1.48,r*.54,-.36,0,Math.PI*2);
+    globe.stroke();
+    globe.setLineDash([]);
+  }
+
+  const families = ['КОНТУР','ЗАРЯ','МАЯК','КЕДР','РИТМ','ЯНТАРЬ'];
+  const tau = Math.PI * 2;
+
+  function craft(id) {
+    const {x,y,r} = scene;
+    const tilt = (id * .618 + .82) % Math.PI - Math.PI / 2;
+    const angle = .83 + id * 2.39996 + clock * (.040 + (id % 7) * .004);
+    const radius = r * (1.24 + (id % 6) * .075);
+    const u = Math.cos(angle) * radius;
+    const v = Math.sin(angle) * radius * (.3 + (id % 5) * .12);
+    const depth = Math.sin(angle);
+    const dx = u * Math.cos(tilt) - v * Math.sin(tilt);
+    const dy = u * Math.sin(tilt) + v * Math.cos(tilt);
+    return {id, x:x+dx, y:y+dy, depth, radius, tilt, scale:Math.min(1.16, r/170) * (.81 + .23 * depth)};
+  }
+
+  const hulls = [
+    ['  ^  ',' .+. ',' :#: ',' =#= ',' :#: ',' .+. ','  :  '],
+    [' .^. ',' :#: ','+###:','  #  ',' :#: ',' +.+ ',' . . '],
+    ['  +  ','  :  ',' .#  ',' +##+',' :##:',' :##:','  +  '],
+    [' .:. ',' +#+ ','::#::','+###:',' :#: ',' .=. ','  :  '],
+    ['  ^  ','  #+ ',' =## ',' :#= ',' :#= ',' +#: ',' .+. '],
+    [' ... ',' +#+ ',' #:# ','=###=',' +#  ',' :+: ','  +  ']
+  ];
+  const stencils = new Map();
+
+  function stencil(id) {
+    if (stencils.has(id)) return stencils.get(id);
+    const marks = [];
+    const hull = hulls[id % hulls.length];
+    for (let row=0; row<hull.length; row++) {
+      [...hull[row]].forEach((glyph, col) => {
+        if (glyph !== ' ') marks.push([col-2,row-3,glyph,1]);
+      });
+    }
+    for (const side of [-1,1]) {
+      const count = 2 + (id + (side > 0 ? Math.floor(id/6) : 0)) % 3;
+      const span = 9 + (id % 4);
+      for (let column=3; column<=span; column++) marks.push([column*side,0,'-',.76]);
+      for (let i=0; i<count; i++) {
+        const dx = span - i*2;
+        const offset = side > 0 && id % 3 === 1 ? 1 : 0;
+        const half = 2 + (id % 2);
+        for (let y=-half; y<=half; y++) {
+          marks.push([dx*side,y+offset, y === 0 ? '+' : y === half || y === -half ? ':' : '|',.7]);
+          if (y !== 0) marks.push([(dx-1)*side,y+offset,'·',.43]);
+        }
+      }
+    }
+    const sprite = document.createElement('canvas');
+    sprite.width = 240;
+    sprite.height = 100;
+    const ink = sprite.getContext('2d');
+    ink.scale(2,2);
+    ink.font = '9px "Lucida Console", monospace';
+    ink.textAlign = 'center';
+    ink.textBaseline = 'middle';
+    ink.fillStyle = '#9e9074';
+    for (const [col,row,glyph,brightness] of marks) {
+      ink.globalAlpha = brightness;
+      ink.fillText(glyph,60+col*4.4,25+row*4.6);
+    }
+    stencils.set(id,sprite);
+    return sprite;
+  }
+
+  function station(target) {
+    const {id,x,y,depth,scale,tilt} = target;
+    ctx.save();
+    ctx.translate(Math.round(x),Math.round(y));
+    ctx.rotate(Math.round(tilt * 3) / 8);
+    ctx.scale(scale,scale);
+    ctx.globalAlpha = depth < 0 ? .42 : .66;
+    ctx.drawImage(stencil(id),-60,-25,120,50);
+    ctx.restore();
+  }
+
+  function inside(target) {
+    const {x,y,r} = scene;
+    return target.depth < 0 && (target.x-x)**2 + (target.y-y)**2 < (r-13)**2;
+  }
+
+  function radar(targets) {
+    const visible = targets.filter(target => !inside(target));
+    if (clock >= nextLock || !visible.some(target => target.id === tracking)) {
+      if (!visible.length) {
+        signal.textContent = "За горизонтом · " + targets.length + " на орбите";
+        return;
+      }
+      const candidates = visible.filter(target => target.id !== tracking);
+      const pool = candidates.length ? candidates : visible;
+      tracking = pool[Math.floor(Math.random() * pool.length)].id;
+      nextLock = clock + 9 + Math.random() * 5;
+    }
+    const target = visible.find(item => item.id === tracking);
+    if (!target) return;
+    const {w,h} = scene;
+    const intensity = .46 + .06 * Math.sin(clock * .55);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(192,170,125,'+intensity+')';
+    ctx.setLineDash([3,5]);
+    ctx.beginPath();
+    const panel = callsign.parentElement;
+    const origin = Math.min(w*.44,panel.offsetLeft+panel.offsetWidth);
+    const top = Math.min(h*.25,panel.offsetTop+panel.offsetHeight*.6);
+    ctx.moveTo(origin,top);
+    ctx.lineTo(Math.min(origin+32,w),top);
+    ctx.lineTo(target.x,target.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.strokeRect(target.x-13,target.y-10,26,20);
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.fillRect(origin-1,top-1,3,3);
+    ctx.restore();
+    if (Math.floor(clock*2) !== lastTelemetry) {
+      const id = target.id;
+      callsign.textContent = families[id % families.length] + '-' + String(id + 1).padStart(2,'0');
+      const range = Math.round(420 + id*11 - target.depth*74);
+      const rate = (7.36 + Math.cos(clock*.12+id)*.22).toFixed(2);
+      signal.textContent = range+' км · '+rate+' км/с · '+targets.length+' на орбите';
+      lastTelemetry = Math.floor(clock*2);
+    }
+  }
+
+  function draw() {
+    const {w,h,x,y,r} = scene;
+    ctx.clearRect(0,0,w,h);
+    const targets = fleet.map(craft).sort((a,b) => a.depth-b.depth);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0,0,w,h);
+    ctx.moveTo(x+r,y);
+    ctx.arc(x,y,r,0,tau);
+    ctx.clip('evenodd');
+    for (const target of targets) if (target.depth < 0) station(target);
+    ctx.restore();
+    ctx.drawImage(layer,0,0,w,h);
+    for (const target of targets) if (target.depth >= 0) station(target);
+    radar(targets);
+  }
+
+  function schedule() {
+    if (!timer && active && animationEnabled && !document.hidden && !motion.matches)
+      timer = setTimeout(tick, 45);
+  }
+
+  let lastTick = 0;
+  function tick() {
+    timer = 0;
+    if (!scene || document.hidden || !active || !animationEnabled || motion.matches) return;
+    const now = performance.now();
+    const elapsed = lastTick ? Math.min(now-lastTick,125) : 0;
+    lastTick = now;
+    clock += elapsed/1000;
+    phase += elapsed/34000;
+    if (now-last >= 170) {
+      planet();
+      last = now;
+    }
+    draw();
+    schedule();
+  }
+
+  window.setFleet = ids => {
+    fleet = ids;
+    for (const id of stencils.keys()) if (!ids.includes(id)) stencils.delete(id);
+    lastTelemetry = -1;
+    if (scene && active) draw();
+  };
+
+  function updateMotion() {
+    if (document.hidden || !active || !animationEnabled || motion.matches) {
+      if (timer) clearTimeout(timer);
+      timer = 0;
+      lastTick = 0;
+      if (scene && active) draw();
+    } else schedule();
+  }
+  window.setAppearance = (accent, surface, font, enabled) => {
+    document.documentElement.style.setProperty("--accent", accent);
+    document.documentElement.style.setProperty("--bg", surface);
+    document.documentElement.style.setProperty("--ui-font", font + ",Consolas,monospace");
+    animationEnabled = enabled;
+    updateMotion();
+  };
+  window.setStartActive = enabled => { active = enabled; updateMotion(); };
+  document.addEventListener('visibilitychange', updateMotion);
+  motion.addEventListener('change', updateMotion);
+  new ResizeObserver(layout).observe(canvas);
+})();
+</script>
+</html>

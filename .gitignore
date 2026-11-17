@@ -1,0 +1,11 @@
+/target/
+/toolchain/
+/profile*/
+/rustup-init.exe
+/smoke*.log
+/browser-profiles/
+/linux/target/
+/dist/
+__pycache__/
+*.keystore
+*.dpapi

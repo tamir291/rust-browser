@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<style>
+:root{color-scheme:dark;--ink:#e8ebe5;--dim:#9ca69f;--line:#353b37;--lime:#dfbc72;--black:#101311;--panel:#191e1a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--black);color:var(--ink);font:14px Pixelify,Consolas,monospace}
+form{display:flex;align-items:center;gap:5px;padding:8px;height:50px;border-bottom:1px solid var(--line)}
+button,input,select{font:inherit;color:inherit;border:1px solid var(--line);border-radius:3px;background:var(--panel);height:32px}
+button{padding:0 8px;cursor:pointer;white-space:nowrap}
+button:hover,select:hover{border-color:var(--lime);color:var(--lime)}
+:is(button,input,select):focus-visible{outline:1px solid var(--lime);outline-offset:1px}
+.icon{width:30px;padding:0;font:15px "Segoe UI Symbol",monospace}
+input{padding:0 9px;flex:1;min-width:55px;font-family:Pixelify,Consolas,monospace}
+input::placeholder{color:var(--dim)}
+#summary{color:var(--lime);font:12px Pixelify,Consolas,monospace}
+#summary[aria-expanded="true"]{background:var(--lime);color:var(--black)}
+#avatar{display:grid;place-items:center;width:32px;padding:0;color:var(--lime)}
+#face{width:19px;height:19px;image-rendering:pixelated}
+#modules{min-width:85px;max-width:125px;padding:0 3px;flex:0 0 auto;text-overflow:ellipsis}
+#network{padding:10px 12px 0}
+.heading{display:flex;align-items:center;gap:12px;margin-bottom:7px}
+strong{font:700 12px Pixelify,Consolas,monospace;letter-spacing:.13em;color:var(--lime)}
+.heading span{color:var(--dim);font-size:11px}
+#rate{margin-left:auto;white-space:nowrap}
+canvas#chart{display:block;width:100%;height:60px;border:1px solid var(--line);background:repeating-linear-gradient(0deg,#141815 0 14px,#262e27 14px 15px)}
+.details{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+article{min-width:0;padding:8px;border:1px solid var(--line);background:var(--panel)}
+pre{font:12px/1.65 Pixelify,Consolas,monospace;height:122px;overflow:auto;margin:5px 0 0;color:var(--ink)}
+@media(max-width:620px){.icon{width:25px}.long{display:none}#summary{padding:0 4px;font-size:10px}#modules{min-width:60px;max-width:80px}}
+body,button,input,select{font-family:Pixelify,Consolas,monospace}
+#deck{display:flex;align-items:center;gap:5px;height:34px;padding:3px 8px;border-bottom:1px solid var(--line);background:#121713}
+#deck [hidden]{display:none}
+#tabs{display:flex;gap:3px;flex:1;overflow:auto;scrollbar-width:thin}
+.tab{display:flex;white-space:nowrap}
+.tab button,#deck>button,#deck select,#deck input{height:25px;font-size:11px}
+.tab button:first-child{max-width:160px;overflow:hidden;text-overflow:ellipsis}
+.tab.active button:first-child{border-color:var(--lime);color:var(--lime)}
+.tab button+button{padding:0 5px}
+#chooser{display:flex;min-width:0;gap:5px;flex:1}
+#choice{flex:1;min-width:70px}
+#profile-name{max-width:130px}#preferences label{font-size:10px;margin-right:6px;white-space:nowrap}#preferences input{height:auto;vertical-align:middle}#preferences button{height:25px;font-size:10px}
+#bookmark[aria-pressed="true"]{color:var(--lime);border-color:var(--lime)}
+@font-face{font-family:Pixelify;src:url('/terminal.ttf') format('truetype');font-display:swap} .tab button,#deck>button{font-family:Pixelify,Consolas,monospace;font-size:12px} #module-button.empty{color:var(--dim)} #module-button.empty .long{display:none} #module-button.empty #module-empty{margin-left:4px} :root{--ui-font:Pixelify,Consolas,monospace} body,button,input,select,.tab button,#deck>button,header,h1,h2,.telemetry,#summary,strong{font-family:var(--ui-font)} </style>
+<form id="bar">
+<button class="icon" type="button" data-action="back" title="Back" aria-label="Back">&#x2190;</button>
+<button class="icon" type="button" data-action="forward" title="Forward" aria-label="Forward">&#x2192;</button>
+<button class="icon" type="button" data-action="reload" title="Reload" aria-label="Reload">&#x21bb;</button>
+<input id="address" aria-label="Address" placeholder="https://" autocomplete="off" spellcheck="false">
+<button type="button" data-action="youtube">YouTube</button>
+<button class="icon" type="button" data-action="fullscreen" title="Full screen" aria-label="Full screen">&#x26f6;</button>
+<button type="button" data-action="modules" id="module-button" title="Modules">+<span class="long"> Modules</span><span id="module-empty" role="status" hidden>Нет модулей</span></button>
+<select id="modules" aria-label="Installed modules" hidden></select>
+<button type="button" id="summary" data-action="network" aria-expanded="false" aria-label="Resources">CPU / RAM</button>
+<button class="icon" type="button" id="bookmark" data-action="bookmark" title="Toggle bookmark" aria-label="Toggle bookmark" aria-pressed="false">&#x2606;</button>
+<button type="button" id="avatar" title="Change local profile avatar" aria-label="Change local profile avatar"><canvas id="face" width="8" height="8" aria-hidden="true"></canvas></button>
+</form>
+<nav id="deck" aria-label="Tabs and profile tools">
+  <div id="tabs"></div>
+  <button id="add-tab" type="button" data-action="new-tab" aria-label="New tab">+</button>
+  <div id="chooser" hidden>
+    <select id="choice" aria-label="Choose profile or search"></select>
+    <input id="profile-name" aria-label="New profile name" placeholder="New profile" maxlength="30" hidden>
+    <button id="create-profile" type="button" hidden>Create</button>
+    <span id="preferences" hidden><label><input type="checkbox" id="quic">QUIC</label><label><input type="checkbox" id="http1">HTTP/1.1</label><label><input type="checkbox" id="protection">SmartScreen</label><button id="save-preferences" title="Applied after reopening the profile">Save</button></span>
+    <button id="clear-history" type="button" hidden>Clear history</button>
+    <button id="dismiss" type="button" aria-label="Close list">×</button>
+  </div>
+  <button id="route" type="button" data-action="manager" title="Current network route">СИСТЕМА</button>
+  <button id="tun-status" type="button" data-action="tun-manager" title="TUN status">TUN</button>
+  <button type="button" data-action="manager">Control</button>
+  <button type="button" data-action="history">History</button>
+  <button type="button" data-action="profiles">Profiles</button>
+</nav>
+<section id="network" hidden>
+<div class="heading"><strong>NETWORK</strong><span>Page traffic &middot; reported transfers</span><span id="rate"></span></div>
+<canvas id="chart" width="800" height="60" aria-label="Recent reported download rate"></canvas>
+<div class="details">
+<article><strong>DESTINATIONS</strong><pre id="entries">Waiting for requests</pre></article>
+<article><strong>PROCESSES</strong><pre id="processes">Sampling</pre></article>
+</div>
+</section>
+<script>
+const send = (action, value) => window.ipc.postMessage(JSON.stringify({action, value}));
+const faces = [
+  [24,60,126,90,126,36,66,0],
+  [66,36,126,219,255,126,36,66],
+  [24,60,102,255,165,126,60,24],
+  [0,126,129,165,129,189,66,60],
+];
+const colors = ['#d3fa57', '#fa6760', '#95edff', '#e8ebe5'];
+const face = document.querySelector('#face').getContext('2d');
+let avatar = 0;
+window.setAvatar = index => {
+  avatar = index % faces.length;
+  face.clearRect(0, 0, 8, 8);
+  face.fillStyle = colors[avatar];
+  faces[avatar].forEach((row, y) => {
+    for (let x = 0; x < 8; x++) if (row & (128 >> x)) face.fillRect(x, y, 1, 1);
+  });
+};
+setAvatar(0);
+document.querySelector('#avatar').onclick = () => {
+  setAvatar(avatar + 1);
+  send('avatar', avatar);
+};
+const address = document.querySelector('#address');
+const summary = document.querySelector('#summary');
+document.querySelector('#bar').onsubmit = event => {event.preventDefault(); send('go', address.value);};
+for (const button of document.querySelectorAll('[data-action]')) button.onclick = () => send(button.dataset.action);
+const modules = document.querySelector("#modules");
+const moduleButton = document.querySelector("#module-button");
+const moduleEmpty = document.querySelector("#module-empty");
+let moduleNotice;
+window.setModules = labels => {
+  clearTimeout(moduleNotice);
+  moduleButton.classList.toggle("empty", !labels.length);
+  moduleEmpty.hidden = Boolean(labels.length);
+  if (!labels.length) {
+    modules.hidden = true;
+    moduleNotice = setTimeout(() => {
+      moduleEmpty.hidden = true;
+      moduleButton.classList.remove("empty");
+    }, 3200);
+    return;
+  }
+  modules.replaceChildren(new Option("Open", ""));
+  labels.forEach((label, index) => modules.add(new Option(label, index)));
+  modules.hidden = false;
+  modules.focus();
+};
+modules.onchange = () => {
+  if (modules.value !== "") send("module-go", Number(modules.value));
+  modules.hidden = true;
+};
+window.setTheme = (accent,surface,font) => {
+  document.documentElement.style.setProperty("--ui-font", font + ",Consolas,monospace");
+  document.documentElement.style.setProperty("--lime",accent);
+  document.documentElement.style.setProperty("--black",surface);
+};
+window.setTunStatus = state => {
+  const button = document.querySelector("#tun-status");
+  button.textContent = state === "running" ? "TUN ON" : ["starting","preparing"].includes(state) ? "TUN …" : ["error","dns-error"].includes(state) ? "TUN !" : "TUN";
+};
+window.setRoute = label => document.querySelector("#route").textContent = label;
+window.setAddress = (value, force) => {if (force || document.activeElement !== address) address.value = value;};
+window.setBookmarked = active => {
+  const button = document.querySelector('#bookmark');
+  button.textContent = active ? '★' : '☆';
+  button.setAttribute('aria-pressed', active);
+};
+const tabs = document.querySelector('#tabs');
+const addTab = document.querySelector('#add-tab');
+window.setTabs = (items, active) => {
+  tabs.replaceChildren();
+  for (const [id, label] of items) {
+    const tab = document.createElement('div');
+    tab.className = 'tab' + (id === active ? ' active' : '');
+    const open = document.createElement('button');
+    open.textContent = label;
+    open.title = label;
+    if (id === active) open.setAttribute('aria-current', 'page');
+    open.onclick = () => send('switch-tab', id);
+    tab.append(open);
+    if (items.length > 1) {
+      const close = document.createElement('button');
+      close.textContent = '×';
+      close.setAttribute('aria-label', 'Close ' + label);
+      close.onclick = () => send('close-tab', id);
+      tab.append(close);
+    }
+    tabs.append(tab);
+  }
+  addTab.disabled = items.length >= 24;
+};
+const chooser = document.querySelector('#chooser');
+const choice = document.querySelector('#choice');
+const profileName = document.querySelector('#profile-name');
+const createProfile = document.querySelector('#create-profile');
+const preferences = document.querySelector("#preferences");
+const savePreferences = document.querySelector("#save-preferences");
+const settings = ["quic", "http1", "protection"];
+savePreferences.onclick = () => send("preferences", Object.fromEntries(settings.map(key => [key, document.getElementById(key).checked])));
+window.preferencesSaved = () => { savePreferences.textContent = "On restart"; };
+const clearHistory = document.querySelector('#clear-history');
+function showChooser(mode, placeholder) {
+  chooser.hidden = false;
+  tabs.hidden = addTab.hidden = true;
+  preferences.hidden = profileName.hidden = createProfile.hidden = mode !== 'profile';
+  clearHistory.hidden = mode !== 'history';
+  choice.replaceChildren(new Option(placeholder, ''));
+}
+function closeChooser() {
+  chooser.hidden = true;
+  tabs.hidden = addTab.hidden = false;
+}
+document.querySelector('#dismiss').onclick = closeChooser;
+window.setChoices = (mode, entries) => {
+  showChooser(mode, entries.length ? 'Recent searches' : 'No search history');
+  entries.forEach((entry, index) => choice.add(new Option(entry, index)));
+  choice.onchange = () => {
+    if (choice.value !== '') send('history-go', Number(choice.value));
+    closeChooser();
+  };
+};
+clearHistory.onclick = () => {
+  if (clearHistory.dataset.confirm) {
+    delete clearHistory.dataset.confirm;
+    clearHistory.textContent = 'Clear history';
+    send('history-clear');
+  } else {
+    clearHistory.dataset.confirm = 'true';
+    clearHistory.textContent = 'Confirm clear';
+  }
+};
+window.setProfiles = (names, current, options) => {
+  savePreferences.textContent = "Save";
+  for (const key of settings) document.getElementById(key).checked = Boolean(options?.[key]);
+  showChooser('profile', 'Current: ' + current);
+  choice.add(new Option('Default profile', '@default'));
+  for (const name of names) if (name !== current) choice.add(new Option(name, name));
+  choice.onchange = () => { if (choice.value) send('profile-open', choice.value); closeChooser(); };
+};
+createProfile.onclick = () => {
+  if (profileName.value.trim()) {
+    send('profile-open', profileName.value);
+    profileName.value = '';
+    closeChooser();
+  }
+};
+profileName.onkeydown = event => {if (event.key === 'Enter') createProfile.click();};
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape') closeChooser();
+  if (event.ctrlKey && event.key.toLowerCase() === 't') {
+    event.preventDefault();
+    send('new-tab');
+  }
+});
+window.setNetwork = enabled => {
+  document.querySelector('#network').hidden = !enabled;
+  summary.setAttribute('aria-expanded', enabled);
+
+};
+window.updateResources = ({cpu, ram, rows}) => {
+  summary.textContent = cpu.toFixed(1) + "% CPU / " + Math.round(ram / 1048576) + " MiB";
+  if (document.querySelector("#network").hidden) return;
+  document.querySelector("#processes").textContent = rows.map(([pid, role, usage, memory]) =>
+    pid + "  " + role + "  " + usage.toFixed(1) + "%  " + Math.round(memory / 1048576) + " MiB").join("\n");
+};
+window.updateNetwork = ({rate, samples, domains}) => {
+  document.querySelector('#rate').textContent = (rate / 1024).toFixed(1) + ' KiB/s';
+  document.querySelector('#entries').textContent = domains.map(([host, bytes, count]) =>
+    host + '  ' + (bytes / 1024).toFixed(1) + ' KiB  /  ' + count + ' resources').join('\n');
+  const canvas = document.querySelector('#chart');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.strokeStyle = '#d3fa57';
+  ctx.lineWidth = 2;
+  const max = Math.max(1, ...samples);
+  ctx.beginPath();
+  samples.forEach((sample, index) => {
+    const x = index * canvas.width / 29;
+    const y = canvas.height - 2 - sample * (canvas.height - 4) / max;
+    if (index === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+};
+send('toolbar-ready');
+</script>
+</html>

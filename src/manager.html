@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="ru">
+<meta charset="utf-8">
+<title>Панель управления</title>
+<style>
+@font-face{font-family:Pixelify;src:url('/terminal.ttf') format('truetype')}
+:root{color-scheme:dark;--accent:#dfbc72;--line:#383b31}
+*{box-sizing:border-box}body{margin:0;background:var(--surface,#101310);color:#e8ebe3;font:15px Pixelify,Consolas,monospace}
+main{padding:18px;max-width:860px;margin:auto}nav{display:flex;gap:5px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:10px}h1{font-size:24px;margin:0 0 12px;font-weight:500}h2{font-size:16px;color:var(--accent);font-weight:500}section{padding:2px 0 12px}
+button,input,select,textarea{font:inherit;color:inherit;background:#1a1e18;border:1px solid var(--line);border-radius:2px;padding:6px 9px}button{cursor:pointer}button:hover,[aria-current=true]{color:var(--accent);border-color:var(--accent)}label{display:block;margin:10px 0}label input[type=checkbox]{accent-color:var(--accent)}label input[type=text]{width:min(100%,420px);display:block;margin-top:5px}p{color:#aeb2a6;line-height:1.4}textarea{display:block;width:100%;height:230px;resize:vertical;font:13px Consolas,monospace}footer{border-top:1px solid var(--line);padding-top:12px;display:flex;gap:10px;align-items:center}#status{color:var(--accent)}li{margin:.55em 0}code{font:12px Consolas,monospace;overflow-wrap:anywhere}
+ :root{--ui-font:Pixelify,Consolas,monospace} body,button,input,select,.tab button,#deck>button,header,h1,h2,.telemetry,#summary,strong{font-family:var(--ui-font)} </style>
+<main>
+  <h1>Панель управления</h1>
+  <nav aria-label="Разделы"><button data-tab="network">Сеть</button><button data-tab="tun">TUN</button><button data-tab="extensions">Расширения</button><button data-tab="appearance">Темы</button><button data-tab="developer">Разработчикам</button></nav>
+  <section id="network">
+    <h2>Маршрутизация профиля</h2>
+    <p>Прокси применяется ко всем сайтам профиля. Для отдельных сайтов можно выделить профиль. Используй IP-адрес локального прокси VPN-клиента.</p>
+    <label><input id="locked" type="checkbox"> Блокировать загрузку сайтов без прокси</label>
+    <label>Адрес прокси <input id="proxy" type="text" placeholder="socks5://127.0.0.1:1080" spellcheck="false"></label>
+    <label><input id="quic" type="checkbox"> Разрешить QUIC вне прокси</label>
+    <label><input id="http1" type="checkbox"> Только HTTP/1.1</label>
+    <label><input id="protection" type="checkbox"> Проверки SmartScreen</label>
+    <h2>DNS</h2>
+    <label>Разрешение имён <select id="dns-mode"><option value="upstream">Через текущий маршрут</option><option value="tls">Свой DNS поверх TLS через SOCKS5</option></select></label>
+    <div id="dns-options" hidden>
+      <label>IP и порт резолвера <input id="dns-address" type="text" placeholder="1.1.1.1:853" spellcheck="false"></label>
+      <label>Имя для проверки сертификата <input id="dns-name" type="text" placeholder="cloudflare-dns.com" spellcheck="false"></label>
+      <label>Семейство адресов <select id="dns-family"><option value="dual">IPv4 + IPv6</option><option value="ipv4">IPv4</option><option value="ipv6">IPv6</option></select></label>
+      <label><input id="dns-ad" type="checkbox"> Требовать DNSSEC AD от резолвера</label>
+    </div>
+    <p>Изменения сетевого режима применяются при повторном открытии профиля. Индикатор показывает выбранный маршрут.</p>
+  </section>
+  <section id="tun" hidden>
+    <h2>Подключение VPN</h2>
+    <p id="tun-state" role="status"></p>
+    <p id="tun-selected" hidden></p>
+    <label>Ссылка подписки или узла <textarea id="tun-import" aria-label="Ссылка подписки или узла" placeholder="Вставь ссылку и нажми «Подключить»" autocomplete="off" spellcheck="false" style="height:65px"></textarea></label>
+    <button id="tun-start">Подключить</button><button id="tun-stop">Отключить</button>
+    <details id="tun-advanced" style="margin-top:18px">
+    <summary>Дополнительные настройки</summary>
+    <label>Протокол <select id="tun-protocol"><option value="vless">VLESS</option><option value="hysteria2">Hysteria 2</option><option value="tuic">TUIC</option><option value="naive">NaiveProxy</option><option value="trojan">Trojan</option></select></label>
+    <label>Транспорт <select id="tun-transport"><option value="tcp">TCP / по умолчанию</option><option value="ws">WebSocket</option><option value="grpc">gRPC</option><option value="h2">HTTP/2</option><option value="httpupgrade">HTTPUpgrade</option><option value="quic">QUIC</option></select></label>
+    <button id="tun-preset">Загрузить пресет</button>
+    <button id="tun-import-btn">Загрузить список без подключения</button>
+    <select id="tun-nodes" aria-label="Узлы подписки" hidden></select>
+    <label>Параметры узла и транспорта (sing-box JSON)<textarea id="tun-node" spellcheck="false" style="height:175px"></textarea></label>
+    <h2>DNS и маршруты</h2>
+    <label>DNS-пресет <select id="tun-dns"><option value="cloudflare">Cloudflare</option><option value="quad9">Quad9</option><option value="google">Google</option><option value="custom">Свой сервер</option></select></label>
+    <label>Транспорт DNS <select id="tun-dns-transport"><option value="https">DoH</option><option value="tls">DoT</option></select></label>
+    <label>IP DNS <input id="tun-dns-ip" type="text" placeholder="Из пресета" spellcheck="false"></label>
+    <label>Имя в сертификате DNS <input id="tun-dns-name" type="text" placeholder="Из пресета" spellcheck="false"></label>
+    <p>DNS сайтов идёт через узел. Для имени самого узла используется отдельный зашифрованный bootstrap. Строгая маршрутизация действует во время работы TUN.</p>
+    <label>Стек <select id="tun-stack"><option value="system">System</option><option value="mixed">Mixed</option><option value="gvisor">gVisor</option></select></label>
+    <label>MTU <input id="tun-mtu" type="number" min="1280" max="9000"></label>
+    <label>Исходящий интерфейс <input id="tun-interface" type="text" placeholder="Определяется автоматически" spellcheck="false"></label>
+    <label><input id="tun-ipv6" type="checkbox"> Разрешить IPv6 внутри туннеля</label>
+    <label><input id="tun-autostart" type="checkbox"> Запускать вместе с профилем (UAC)</label>
+    <button id="tun-check">Проверить JSON</button>
+    </details>
+  </section>
+  <section id="extensions" hidden>
+    <h2>Установленные модули</h2>
+    <ul id="installed"></ul>
+    <button id="reload">Обновить список</button>
+    <p>Модули загружаются из папки modules текущего профиля. Поддерживаются манифесты команд открытия сайтов.</p>
+  </section>
+  <section id="appearance" hidden>
+    <h2>Оформление</h2>
+    <label>Палитра <select id="preset"><option value="amber">Янтарь</option><option value="phosphor">Зелёный фосфор</option><option value="mono">Монохром</option></select></label>
+    <label>Шрифт <select id="font"><option value="pixel">Pixelify</option><option value="console">Lucida Console</option><option value="typewriter">Courier New</option><option value="compact">Consolas</option></select></label>
+    <label>Свой цвет акцента <input id="accent" type="text" placeholder="#dfbc72" maxlength="7"></label>
+    <label>Свой цвет фона <input id="surface" type="text" placeholder="#101310" maxlength="7"></label>
+    <label><input id="motion" type="checkbox"> Анимация орбит</label>
+  </section>
+  <section id="developer" hidden>
+    <h2>Конфигурация JSON</h2>
+    <p>Файл preferences.json хранит настройки профиля. В файле нет истории, cookies, паролей или ссылок подписки.</p>
+    <textarea id="raw" aria-label="JSON настроек" spellcheck="false"></textarea>
+    <h2>Манифест модуля</h2>
+    <textarea id="manifest" aria-label="Манифест модуля" spellcheck="false" style="height:110px"></textarea>
+    <button id="template">Подставить шаблон</button><button id="install">Установить манифест</button>
+  </section>
+  <footer><button id="save">Сохранить</button><span id="status" role="status"></span></footer>
+</main>
+<script>
+const get = id => document.getElementById(id);
+const send = (action,value) => window.ipc.postMessage(JSON.stringify({action,value}));
+let settings, installed = [], section = 'network';
+const form = () => ({
+  http1:get('http1').checked, quic:get('quic').checked, protection:get('protection').checked,
+  network:{locked:get('locked').checked, proxy:get('proxy').value, dns:{
+    mode:get('dns-mode').value, address:get('dns-address').value || '1.1.1.1:853',
+    server_name:get('dns-name').value || 'cloudflare-dns.com', family:get('dns-family').value,
+    require_ad:get('dns-ad').checked
+  }},
+  appearance:{preset:get('preset').value, font:get('font').value, motion:get('motion').checked, accent:get('accent').value, surface:get('surface').value},
+  extensions:{disabled:installed.filter(item => !item.checked).map(item => item.value)}
+});
+get('dns-mode').onchange = () => { get('dns-options').hidden = get('dns-mode').value !== 'tls'; };
+let importedNodes = [];
+const readTun = () => ({
+  node:get('tun-node').value.trim() ? JSON.parse(get('tun-node').value) : null, dns:get('tun-dns').value,
+  dns_transport:get('tun-dns-transport').value, dns_ip:get('tun-dns-ip').value.trim(),
+  dns_name:get('tun-dns-name').value.trim(), stack:get('tun-stack').value,
+  mtu:Number(get('tun-mtu').value), interface:get('tun-interface').value.trim(),
+  ipv6:get('tun-ipv6').checked, autostart:get('tun-autostart').checked
+});
+window.showTun = value => {
+  const usable = value.node?.server && !value.node.server.toLowerCase().endsWith('.example');
+  get('tun-node').value = usable ? JSON.stringify(value.node,null,2) : '';
+  get('tun-selected').hidden = !usable;
+  get('tun-selected').textContent = usable ? 'Выбран: ' + (value.display_name || value.node.type.toUpperCase()) : '';
+  get('tun-dns').value = value.dns ?? 'cloudflare';
+  get('tun-dns-transport').value = value.dns_transport ?? 'https';
+  get('tun-dns-name').value = value.dns_name ?? '';
+  get('tun-dns-ip').value = value.dns_ip ?? '';
+  get('tun-stack').value = value.stack ?? 'system';
+  get('tun-mtu').value = value.mtu ?? 1420;
+  get('tun-interface').value = value.interface ?? '';
+  get('tun-ipv6').checked = value.ipv6 !== false;
+  get('tun-autostart').checked = value.autostart === true;
+};
+window.tunState = (state, ready) => {
+  const labels = {stopped:'Отключено',preparing:'Поиск рабочего узла…',starting:'Проверка TUN и DNS…',running:'Подключено',stopping:'Остановка',error:'Не удалось подключиться','dns-error':'DNS через TUN не ответил. Туннель остановлен.'};
+  get('tun-state').textContent = ready ? labels[state] ?? state : 'Движок sing-box не найден';
+  get('tun-start').disabled = !ready || ['preparing','running','starting','stopping'].includes(state);
+  get('tun-stop').disabled = !['running','starting'].includes(state);
+};
+window.tunPreset = value => { get('tun-node').value = JSON.stringify(value,null,2); };
+window.tunImported = nodes => {
+  importedNodes = nodes;
+  const choices = get('tun-nodes');
+  choices.replaceChildren();
+  nodes.forEach(([name],index) => choices.add(new Option(name,index)));
+  choices.hidden = !nodes.length;
+  if (nodes.length) tunPreset(nodes[0][1]);
+};
+get('tun-nodes').onchange = () => tunPreset(importedNodes[Number(get('tun-nodes').value)][1]);
+get('tun-preset').onclick = () => send('tun-preset',{protocol:get('tun-protocol').value,transport:get('tun-transport').value});
+get('tun-import-btn').onclick = () => {
+  const text = get('tun-import').value;
+  if (text.trim()) {
+    get('tun-import').value = '';
+    notice('Импорт…');
+    send('tun-import',text);
+  }
+};
+function writeTun(action) {
+  try { send(action,readTun()); }
+  catch { notice('Укажи корректный JSON узла.'); }
+}
+get('tun-check').onclick = () => writeTun('tun-check');
+get('tun-start').onclick = () => {
+  const input = get('tun-import').value.trim();
+  try {
+    if (input) {
+      get('tun-node').value = '';
+      get('tun-import').value = '';
+    }
+    send('tun-start',{input,options:readTun()});
+  } catch {
+    notice('Укажи корректный JSON узла.');
+  }
+};
+get('tun-stop').onclick = () => send('tun-stop');
+window.showState = (value, modules) => {
+  settings = value;
+  for (const id of ['http1','quic','protection']) get(id).checked = Boolean(value[id]);
+  get('locked').checked = Boolean(value.network?.locked);
+  get('proxy').value = value.network?.proxy ?? '';
+  const dns = value.network?.dns;
+  get('dns-mode').value = dns?.mode ?? 'upstream';
+  get('dns-address').value = dns?.address ?? '1.1.1.1:853';
+  get('dns-name').value = dns?.server_name ?? 'cloudflare-dns.com';
+  get('dns-family').value = dns?.family ?? 'dual';
+  get('dns-ad').checked = Boolean(dns?.require_ad);
+  get('dns-mode').onchange();
+  get('font').value = value.appearance?.font ?? 'pixel';
+  get('preset').value = value.appearance?.preset ?? 'amber';
+  get('accent').value = value.appearance?.accent ?? '';
+  get('surface').value = value.appearance?.surface ?? '';
+  get('motion').checked = value.appearance?.motion !== false;
+  get('raw').value = JSON.stringify(value,null,2);
+  get('installed').replaceChildren();
+  installed = modules.map(([id,title]) => {
+    const item = document.createElement('li');
+    const label = document.createElement('label');
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.value = id;
+    box.checked = !(value.extensions?.disabled ?? []).includes(id);
+    label.append(box,document.createTextNode(' ' + title));
+    item.append(label);
+    get('installed').append(item);
+    return box;
+  });
+  if (!installed.length) get('installed').textContent = 'Нет модулей';
+};
+window.setTheme = (accent,surface,font) => {
+  document.documentElement.style.setProperty("--ui-font", font + ",Consolas,monospace");
+  document.documentElement.style.setProperty("--accent",accent);
+  document.documentElement.style.setProperty("--surface",surface);
+};
+window.notice = text => get('status').textContent = text;
+for (const button of document.querySelectorAll('[data-tab]')) {
+  button.onclick = () => {
+    if (button.dataset.tab === 'developer' && section !== 'developer' && settings) {
+      get('raw').value = JSON.stringify(form(),null,2);
+    }
+    section = button.dataset.tab;
+    for (const tab of document.querySelectorAll('[data-tab]')) {
+      get(tab.dataset.tab).hidden = tab.dataset.tab !== section;
+      tab.setAttribute('aria-current',tab === button);
+    }
+  };
+}
+document.querySelector('[data-tab=network]').click();
+get('reload').onclick = () => send('state');
+get('save').onclick = () => {
+  try {
+    if (section === 'tun') { writeTun('tun-save'); return; }
+    send('save', section === 'developer' ? JSON.parse(get('raw').value) : form());
+  } catch {
+    notice('Некорректный JSON.');
+  }
+};
+send('state');
+get('template').onclick = () => {
+  get('manifest').value = JSON.stringify({id:'example',type:'shortcut',title:'Пример',url:'https://example.com/'},null,2);
+};
+get('install').onclick = () => {
+  try { send('install',JSON.parse(get('manifest').value)); }
+  catch { notice('Некорректный JSON манифеста.'); }
+};
+</script>
+</html>
