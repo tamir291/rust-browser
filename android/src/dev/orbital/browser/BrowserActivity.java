@@ -126,6 +126,10 @@ public final class BrowserActivity extends Activity {
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(view, false);
         view.setWebViewClient(new WebViewClient() {
+            @Override public boolean shouldOverrideUrlLoading(WebView web, String url) {
+                return !allowed(Uri.parse(url));
+            }
+
             @Override public boolean shouldOverrideUrlLoading(WebView web, WebResourceRequest request) {
                 return request.isForMainFrame() && !allowed(request.getUrl());
             }
@@ -143,7 +147,12 @@ public final class BrowserActivity extends Activity {
             @Override public void onPageFinished(WebView web, String url) {
                 if (web == active && !address.hasFocus()) address.setText(HOME.equals(url) ? "" : url);
                 if (HOME.equals(url)) {
-                    web.evaluateJavascript("window.setBookmarks?.(" + entries("bookmarks") + ");window.setFleet?.("
+                    JSONArray bookmarks = entries("bookmarks");
+                    if (bookmarks.length() == 0) {
+                        try { bookmarks.put(new JSONObject().put("name", "YouTube").put("url", "https://www.youtube.com/")); }
+                        catch (JSONException ignored) { }
+                    }
+                    web.evaluateJavascript("window.setBookmarks?.(" + bookmarks + ");window.setFleet?.("
                             + fleet() + ")", null);
                 } else if (allowed(Uri.parse(url))) {
                     remember("history", web.getTitle(), url, 100);

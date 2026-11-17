@@ -2,6 +2,7 @@
 
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from os import environ
 from pathlib import Path
 from subprocess import run
 from tempfile import TemporaryDirectory
@@ -9,6 +10,7 @@ from time import sleep
 from threading import Thread
 
 ROOT = Path(__file__).resolve().parents[1]
+EXE = Path(environ.get("ORBITAL_TEST_EXE", ROOT / "target/debug/rust-browser.exe"))
 HTML = b"""<!doctype html>
 <title>Rust Browser smoke test</title>
 <video muted autoplay></video><canvas width="320" height="180" hidden></canvas>
@@ -76,7 +78,7 @@ def main():
             try:
                 for launch in range(2):
                     result = run(
-                        [ROOT / 'target/debug/rust-browser.exe', '--second-monitor',
+                        [EXE, '--second-monitor',
                          '--smoke', f'--profile={profile}', f'--url={url}'],
                         check=True, capture_output=True, text=True, timeout=25,
                     )

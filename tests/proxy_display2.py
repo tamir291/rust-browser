@@ -7,7 +7,7 @@ from subprocess import run
 from socketserver import StreamRequestHandler, ThreadingTCPServer
 from threading import Thread
 
-from smoke_display2 import ROOT, test_profile
+from smoke_display2 import EXE, test_profile
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -32,7 +32,7 @@ class Handler(BaseHTTPRequestHandler):
 
 def launch(profile, target):
     result = run(
-        [ROOT / 'target/debug/rust-browser.exe', '--second-monitor', '--smoke',
+        [EXE, '--second-monitor', '--smoke',
          f'--profile={profile}', f'--url={target}'],
         check=True, capture_output=True, text=True, timeout=25,
     )
