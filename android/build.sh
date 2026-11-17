@@ -20,6 +20,6 @@ key="$out/development.keystore"
 if [[ ! -f "$key" ]]; then
     keytool -genkeypair -keystore "$key" -storepass android -keypass android -alias androiddebugkey -dname 'CN=Android Debug,O=Orbital Development,C=US' -keyalg RSA -keysize 2048 -validity 10000
 fi
-apk="$root/dist/RustBrowser-Android.apk"
+apk="$root/dist/Rectangle-Android.apk"
 "$tools/apksigner" sign --ks "$key" --ks-pass pass:android --out "$apk" "$out/aligned.apk"
 "$tools/apksigner" verify --verbose "$apk"

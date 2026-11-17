@@ -27,11 +27,11 @@ jobs:
           dbus-run-session -- xvfb-run -a linux/target/release/rust-browser-linux --smoke
       - name: Assemble Linux archive
         run: |
-          mkdir -p dist/RustBrowser-Linux
-          install -m755 linux/target/release/rust-browser-linux dist/RustBrowser-Linux/rust-browser
-          install -m644 src/assets/PixelifySans-OFL.txt dist/RustBrowser-Linux/
-          tar -C dist -czf dist/RustBrowser-Linux-x86_64.tar.gz RustBrowser-Linux
+          mkdir -p dist/Rectangle-Linux
+          install -m755 linux/target/release/rust-browser-linux dist/Rectangle-Linux/rectangle
+          install -m644 src/assets/PixelifySans-OFL.txt dist/Rectangle-Linux/
+          tar -C dist -czf dist/Rectangle-Linux-x86_64.tar.gz Rectangle-Linux
       - uses: actions/upload-artifact@v4
         with:
-          name: RustBrowser-Linux-x86_64
-          path: dist/RustBrowser-Linux-x86_64.tar.gz
+          name: Rectangle-Linux-x86_64
+          path: dist/Rectangle-Linux-x86_64.tar.gz

@@ -10,11 +10,11 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Windows release compilation failed ($LASTEXITCODE)." }
 } finally { $env:Path = $prev }
 $dist = Join-Path $root 'dist'
-$package = Join-Path $dist 'RustBrowser-Windows-x64'
+$package = Join-Path $dist 'Rectangle-Windows-x64'
 New-Item -Path $package -ItemType Directory -Force | Out-Null
-Copy-Item "$root\target\release\rust-browser.exe" "$package\RustBrowser.exe" -Force
+Copy-Item "$root\target\release\rust-browser.exe" "$package\Rectangle.exe" -Force
 Copy-Item "$root\target\release\WebView2Loader.dll" $package -Force
 Copy-Item "$root\src\assets\PixelifySans-OFL.txt" $package -Force
 Copy-Item "$PSScriptRoot\Install-TUN.ps1" $package -Force
-Compress-Archive -LiteralPath $package -DestinationPath "$dist\RustBrowser-Windows-x64.zip" -Force
-Get-Item "$dist\RustBrowser-Windows-x64.zip" | Select-Object FullName,Length
+Compress-Archive -LiteralPath $package -DestinationPath "$dist\Rectangle-Windows-x64.zip" -Force
+Get-Item "$dist\Rectangle-Windows-x64.zip" | Select-Object FullName,Length

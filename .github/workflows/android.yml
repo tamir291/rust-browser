@@ -55,7 +55,7 @@ jobs:
           trap 'kill "$emulator_pid" 2>/dev/null || true' EXIT
           timeout 180 bash -c 'until [[ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" == 1 ]]; do sleep 3; done'
           adb shell input keyevent 82
-          adb install dist/RustBrowser-Android.apk
+          adb install dist/Rectangle-Android.apk
           adb shell am start -W -n dev.orbital.browser/.BrowserActivity
           for attempt in {1..12}; do
             adb shell uiautomator dump /sdcard/orbital.xml >/dev/null &&
@@ -81,5 +81,5 @@ jobs:
           grep -q 'New tab' orbital-tabs.xml
       - uses: actions/upload-artifact@v4
         with:
-          name: RustBrowser-Android-CI
-          path: dist/RustBrowser-Android.apk
+          name: Rectangle-Android-CI
+          path: dist/Rectangle-Android.apk

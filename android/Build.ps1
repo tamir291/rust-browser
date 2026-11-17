@@ -35,7 +35,7 @@ if (!(Test-Path $key)) {
     & keytool -genkeypair -keystore $key -storepass android -keypass android -alias androiddebugkey -dname 'CN=Android Debug,O=Orbital Development,C=US' -keyalg RSA -keysize 2048 -validity 10000
     Assert-Native
 }
-$apk = Join-Path $dist 'RustBrowser-Android.apk'
+$apk = Join-Path $dist 'Rectangle-Android.apk'
 & "$tools\apksigner.bat" sign --ks $key --ks-pass pass:android --out $apk "$out\aligned.apk"
 Assert-Native
 & "$tools\apksigner.bat" verify --verbose $apk

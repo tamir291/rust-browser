@@ -1,4 +1,11 @@
-﻿use std::{borrow::Cow, cell::{Cell, RefCell}, fs, path::{Path, PathBuf}, rc::Rc};
+use std::{
+    borrow::Cow,
+    cell::{Cell, RefCell},
+    collections::HashSet,
+    fs,
+    path::{Path, PathBuf},
+    rc::Rc,
+};
 
 use gtk::prelude::*;
 use serde_json::{Value, json};
@@ -26,35 +33,49 @@ struct Browser {
     data: RefCell<Value>,
     data_path: PathBuf,
     smoke: bool,
-    loaded_home: Cell<bool>,
+    loaded_home: RefCell<HashSet<u64>>,
 }
 
 fn profile() -> PathBuf {
     if let Some(path) = std::env::var_os("XDG_DATA_HOME") {
         return PathBuf::from(path).join("rust-browser");
     }
-    std::env::var_os("HOME").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("."))
+    std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("."))
         .join(".local/share/rust-browser")
 }
 
 fn read_data(path: &Path) -> Value {
-    fs::read_to_string(path).ok().and_then(|text| serde_json::from_str(&text).ok())
-        .filter(Value::is_object).unwrap_or_else(|| json!({
-            "bookmarks":[{"name":"YouTube","url":"https://www.youtube.com/"}], "history":[]
-        }))
+    fs::read_to_string(path)
+        .ok()
+        .and_then(|text| serde_json::from_str(&text).ok())
+        .filter(Value::is_object)
+        .unwrap_or_else(|| {
+            json!({
+                "bookmarks":[{"name":"YouTube","url":"https://www.youtube.com/"}], "history":[]
+            })
+        })
 }
 
 fn web_url(input: &str) -> bool {
-    Url::parse(input).is_ok_and(|url| matches!(url.scheme(), "http" | "https") && url.host().is_some())
+    Url::parse(input)
+        .is_ok_and(|url| matches!(url.scheme(), "http" | "https") && url.host().is_some())
 }
 
 fn destination(input: &str) -> Option<String> {
     let input = input.trim();
-    if input.is_empty() { return None; }
-    if web_url(input) { return Some(input.into()); }
+    if input.is_empty() {
+        return None;
+    }
+    if web_url(input) {
+        return Some(input.into());
+    }
     if input.contains('.') && !input.contains(char::is_whitespace) && !input.contains("://") {
         let candidate = format!("https://{input}");
-        if web_url(&candidate) { return Some(candidate); }
+        if web_url(&candidate) {
+            return Some(candidate);
+        }
     }
     let mut query = Url::parse("https://duckduckgo.com/").expect("fixed search URL");
     query.query_pairs_mut().append_pair("q", input);
@@ -69,13 +90,17 @@ fn home_request(path: &str) -> wry::http::Response<Cow<'static, [u8]>> {
             .body(Cow::Borrowed(START.as_bytes())).expect("fixed response"),
         "/terminal.ttf" => Response::builder().header("Content-Type", "font/ttf")
             .body(Cow::Borrowed(FONT)).expect("fixed response"),
-        _ => Response::builder().status(404).body(Cow::Borrowed(&[])).expect("fixed response"),
+        _ => Response::builder().status(404).body(Cow::<[u8]>::Borrowed(&[])).expect("fixed response"),
     }
 }
 
 impl Browser {
     fn current(&self, action: impl FnOnce(&Tab)) {
-        if let Some(tab) = self.notebook.current_page().and_then(|index| self.tabs.borrow().get(index as usize).map(|tab| tab.id)) {
+        if let Some(tab) = self
+            .notebook
+            .current_page()
+            .and_then(|index| self.tabs.borrow().get(index as usize).map(|tab| tab.id))
+        {
             if let Some(tab) = self.tabs.borrow().iter().find(|item| item.id == tab) {
                 action(tab);
             }
@@ -83,7 +108,9 @@ impl Browser {
     }
 
     fn add_tab(self: &Rc<Self>) -> wry::Result<()> {
-        if self.tabs.borrow().len() >= MAX_TABS { return Ok(()); }
+        if self.tabs.borrow().len() >= MAX_TABS {
+            return Ok(());
+        }
         let id = self.sequence.get();
         let page = gtk::Box::new(gtk::Orientation::Vertical, 0);
         let tab_label = gtk::Box::new(gtk::Orientation::Horizontal, 4);
@@ -102,31 +129,50 @@ impl Browser {
         let mut context = self.context.borrow_mut();
         let mut builder = WebViewBuilder::new_with_web_context(&mut context);
         if id == 0 {
-            builder = builder.with_custom_protocol("orbital".into(), |_, request| home_request(request.uri().path()));
+            builder = builder.with_custom_protocol("orbital".into(), |_, request| {
+                home_request(request.uri().path())
+            });
         }
-        let web = builder.with_navigation_handler(|url| url == HOME || web_url(&url))
+        let web = builder
+            .with_navigation_handler(|url| url == HOME || web_url(&url))
             .with_on_page_load_handler(move |event, uri| {
-                if !matches!(event, PageLoadEvent::Finished) { return; }
+                if !matches!(event, PageLoadEvent::Finished) {
+                    return;
+                }
                 *page_address.borrow_mut() = uri.clone();
-                let Some(browser) = weak.upgrade() else { return; };
-                let host = Url::parse(&uri).ok().and_then(|url| url.host_str().map(str::to_owned));
-                label.set_text(if uri == HOME { "Start" } else { host.as_deref().unwrap_or("Page") });
+                let Some(browser) = weak.upgrade() else {
+                    return;
+                };
+                let host = Url::parse(&uri)
+                    .ok()
+                    .and_then(|url| url.host_str().map(str::to_owned));
+                label.set_text(if uri == HOME {
+                    "Start"
+                } else {
+                    host.as_deref().unwrap_or("Page")
+                });
                 if uri == HOME {
-                    browser.loaded_home.set(true);
+                    browser.loaded_home.borrow_mut().insert(id);
                 } else if web_url(&uri) {
                     browser.remember("history", host.as_deref().unwrap_or("Page"), &uri, 100);
                 }
                 browser.refresh();
-            }).with_url(HOME).build_gtk(&page)?;
+            })
+            .with_url(HOME)
+            .build_gtk(&page)?;
         drop(context);
 
         let weak = Rc::downgrade(self);
         close.connect_clicked(move |_| {
-            let Some(browser) = weak.upgrade() else { return };
+            let Some(browser) = weak.upgrade() else {
+                return;
+            };
             let index = browser.tabs.borrow().iter().position(|tab| tab.id == id);
             let Some(index) = index else { return };
             if browser.tabs.borrow().len() == 1 {
-                browser.current(|tab| { let _ = tab.web.load_url(HOME); });
+                browser.current(|tab| {
+                    let _ = tab.web.load_url(HOME);
+                });
             } else {
                 let removed = browser.tabs.borrow_mut().remove(index);
                 browser.notebook.remove_page(Some(index as u32));
@@ -135,7 +181,11 @@ impl Browser {
             }
         });
         self.sequence.set(id + 1);
-        self.tabs.borrow_mut().push(Tab { id, address: addr, web });
+        self.tabs.borrow_mut().push(Tab {
+            id,
+            address: addr,
+            web,
+        });
         let index = self.notebook.append_page(&page, Some(&tab_label));
         page.show_all();
         tab_label.show_all();
@@ -153,7 +203,8 @@ impl Browser {
         for (index, tab) in tabs.iter().enumerate() {
             let uri = tab.address.borrow();
             if Some(index) == active && !self.address.has_focus() {
-                self.address.set_text(if uri.as_str() == HOME { "" } else { &uri });
+                self.address
+                    .set_text(if uri.as_str() == HOME { "" } else { &uri });
             }
             if uri.as_str() == HOME {
                 let _ = tab.web.evaluate_script(&format!(
@@ -178,9 +229,12 @@ impl Browser {
     }
 
     fn show_list(self: &Rc<Self>, key: &str, title: &str) {
-        let dialog = gtk::Dialog::with_buttons(Some(title), Some(&self.window),
+        let dialog = gtk::Dialog::with_buttons(
+            Some(title),
+            Some(&self.window),
             gtk::DialogFlags::MODAL | gtk::DialogFlags::DESTROY_WITH_PARENT,
-            &[("Close", gtk::ResponseType::Close)]);
+            &[("Close", gtk::ResponseType::Close)],
+        );
         dialog.set_default_size(560, 400);
         let scroll = gtk::ScrolledWindow::new(gtk::Adjustment::NONE, gtk::Adjustment::NONE);
         let list = gtk::Box::new(gtk::Orientation::Vertical, 4);
@@ -188,16 +242,22 @@ impl Browser {
         dialog.content_area().pack_start(&scroll, true, true, 5);
         if let Some(rows) = self.data.borrow()[key].as_array() {
             for row in rows {
-                let Some(uri) = row["url"].as_str().filter(|url| web_url(url)) else { continue };
+                let Some(uri) = row["url"].as_str().filter(|url| web_url(url)) else {
+                    continue;
+                };
                 let url = uri.to_owned();
                 let button = gtk::Button::with_label(row["name"].as_str().unwrap_or(uri));
                 let weak = Rc::downgrade(self);
                 let dialog_weak = dialog.downgrade();
                 button.connect_clicked(move |_| {
                     if let Some(browser) = weak.upgrade() {
-                        browser.current(|tab| { let _ = tab.web.load_url(&url); });
+                        browser.current(|tab| {
+                            let _ = tab.web.load_url(&url);
+                        });
                     }
-                    if let Some(dialog) = dialog_weak.upgrade() { dialog.close(); }
+                    if let Some(dialog) = dialog_weak.upgrade() {
+                        dialog.close();
+                    }
                 });
                 list.pack_start(&button, false, false, 0);
             }
@@ -213,7 +273,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let directory = profile();
     fs::create_dir_all(&directory)?;
     let window = gtk::Window::new(gtk::WindowType::Toplevel);
-    window.set_title("Rust Browser");
+    window.set_title("Rectangle");
+    let icon = gtk::gdk_pixbuf::PixbufLoader::new();
+    icon.write(include_bytes!("../../src/assets/orbit.png"))?;
+    icon.close()?;
+    window.set_icon(icon.pixbuf().as_ref());
     window.set_default_size(1050, 740);
     let outer = gtk::Box::new(gtk::Orientation::Vertical, 0);
     let header = gtk::Box::new(gtk::Orientation::Horizontal, 5);
@@ -226,22 +290,49 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let notebook = gtk::Notebook::new();
     notebook.set_scrollable(true);
     let data_path = directory.join("browser-data.json");
-    let browser = Rc::new(Browser { window: window.clone(), address: address.clone(), notebook: notebook.clone(),
+    let browser = Rc::new(Browser {
+        window: window.clone(),
+        address: address.clone(),
+        notebook: notebook.clone(),
         context: RefCell::new(WebContext::new(Some(directory.join("webkit")))),
-        tabs: RefCell::new(Vec::new()), sequence: Cell::new(0), data: RefCell::new(read_data(&data_path)),
-        data_path, smoke, loaded_home: Cell::new(false) });
-    for (title, action) in [("←", "back"), ("↻", "reload"), ("+", "new"), ("☆", "bookmark"), ("Bookmarks", "bookmarks"), ("History", "history")] {
+        tabs: RefCell::new(Vec::new()),
+        sequence: Cell::new(0),
+        data: RefCell::new(read_data(&data_path)),
+        data_path,
+        smoke,
+        loaded_home: RefCell::new(HashSet::new()),
+    });
+    for (title, action) in [
+        ("←", "back"),
+        ("↻", "reload"),
+        ("+", "new"),
+        ("☆", "bookmark"),
+        ("Bookmarks", "bookmarks"),
+        ("History", "history"),
+    ] {
         let button = gtk::Button::with_label(title);
         let weak = Rc::downgrade(&browser);
         button.connect_clicked(move |_| {
-            let Some(browser) = weak.upgrade() else { return; };
+            let Some(browser) = weak.upgrade() else {
+                return;
+            };
             match action {
-                "back" => browser.current(|tab| { let _ = tab.web.evaluate_script("history.back()"); }),
-                "reload" => browser.current(|tab| { let _ = tab.web.reload(); }),
-                "new" => { if let Err(error) = browser.add_tab() { eprintln!("Tab: {error}"); } }
+                "back" => browser.current(|tab| {
+                    let _ = tab.web.evaluate_script("history.back()");
+                }),
+                "reload" => browser.current(|tab| {
+                    let _ = tab.web.reload();
+                }),
+                "new" => {
+                    if let Err(error) = browser.add_tab() {
+                        eprintln!("Tab: {error}");
+                    }
+                }
                 "bookmark" => browser.current(|tab| {
                     let uri = tab.address.borrow();
-                    if web_url(&uri) { browser.remember("bookmarks", &uri, &uri, 40); }
+                    if web_url(&uri) {
+                        browser.remember("bookmarks", &uri, &uri, 40);
+                    }
                 }),
                 "bookmarks" => browser.show_list("bookmarks", "Bookmarks"),
                 "history" => browser.show_list("history", "History"),
@@ -249,43 +340,62 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         });
         header.pack_start(&button, false, false, 0);
-        if action == "reload" { header.pack_start(&address, true, true, 0); }
+        if action == "reload" {
+            header.pack_start(&address, true, true, 0);
+        }
     }
 
     let weak = Rc::downgrade(&browser);
     address.connect_activate(move |entry| {
         if let Some((browser, url)) = weak.upgrade().zip(destination(&entry.text())) {
-            browser.current(|tab| { let _ = tab.web.load_url(&url); });
+            browser.current(|tab| {
+                let _ = tab.web.load_url(&url);
+            });
             browser.window.set_focus(None::<&gtk::Widget>);
         }
     });
     let weak = Rc::downgrade(&browser);
     notebook.connect_switch_page(move |_, _, _| {
         let weak = weak.clone();
-        gtk::glib::idle_add_local_once(move || { if let Some(browser) = weak.upgrade() { browser.refresh(); } });
+        gtk::glib::idle_add_local_once(move || {
+            if let Some(browser) = weak.upgrade() {
+                browser.refresh();
+            }
+        });
     });
     let css = gtk::CssProvider::new();
     css.load_from_data(b"window, notebook, headerbar { background: #101310; color: #ece9de; } button,entry {color:#e1c485;background:#191d17;border-color:#44473b;} tab:checked {background:#292a1b;}")?;
     if let Some(screen) = gtk::gdk::Screen::default() {
-        gtk::StyleContext::add_provider_for_screen(&screen, &css, gtk::STYLE_PROVIDER_PRIORITY_APPLICATION);
+        gtk::StyleContext::add_provider_for_screen(
+            &screen,
+            &css,
+            gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
+        );
     }
     outer.pack_start(&header, false, false, 0);
     outer.pack_start(&notebook, true, true, 0);
     window.add(&outer);
-    window.connect_delete_event(|_, _| { gtk::main_quit(); gtk::glib::Propagation::Proceed });
+    window.connect_delete_event(|_, _| {
+        gtk::main_quit();
+        gtk::glib::Propagation::Proceed
+    });
     browser.add_tab()?;
     window.show_all();
     if smoke {
         let owner = Rc::downgrade(&browser);
         gtk::glib::timeout_add_seconds_local_once(5, move || {
             if let Some(browser) = owner.upgrade() {
-                if browser.add_tab().is_err() { browser.loaded_home.set(false); }
+                if browser.add_tab().is_err() {
+                    browser.loaded_home.borrow_mut().clear();
+                }
             }
         });
         gtk::glib::timeout_add_seconds_local_once(10, gtk::main_quit);
     }
     gtk::main();
-    if browser.smoke && (!browser.loaded_home.get() || browser.tabs.borrow().len() != 2) {
+    if browser.smoke
+        && (browser.loaded_home.borrow().len() != 2 || browser.tabs.borrow().len() != 2)
+    {
         return Err("Linux start page and two-tab smoke check failed".into());
     }
     Ok(())

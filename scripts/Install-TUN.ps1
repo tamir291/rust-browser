@@ -7,4 +7,4 @@ $expected = '99185d75d314a07dbba4a130c8ad986cbeb629a07927975636b341ca61f991df'
 Invoke-WebRequest -UseBasicParsing -Uri $release -OutFile $package
 if ((Get-FileHash -LiteralPath $package -Algorithm SHA256).Hash -ne $expected) { throw 'sing-box archive checksum mismatch.' }
 Expand-Archive -LiteralPath $package -DestinationPath $destination -Force
-Write-Output 'sing-box 1.14.4 ready. Open the TUN panel in Rust Browser.'
+Write-Output 'sing-box 1.14.4 ready. Open the TUN panel in Rectangle.'

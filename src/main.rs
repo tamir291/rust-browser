@@ -317,7 +317,7 @@ fn run() -> Result<(), Box<dyn Error>> {
     let mut builder = WindowBuilder::new()
         .with_window_icon(Some(icon.clone()))
         .with_taskbar_icon(Some(icon))
-        .with_title("Rust Browser")
+        .with_title("Rectangle")
         .with_visible(false)
         .with_focused(false)
         .with_min_inner_size(LogicalSize::new(530, 320))
