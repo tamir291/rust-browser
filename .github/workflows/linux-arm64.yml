@@ -1,0 +1,43 @@
+name: Linux ARM64
+on:
+  push:
+    paths:
+      - linux/**
+      - src/start.html
+      - src/assets/**
+      - .github/workflows/linux-arm64.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  arm64:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 25
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install platform packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev xvfb xauth dbus-x11
+      - name: Build ARM64 application
+        run: cargo build --release --locked --manifest-path linux/Cargo.toml
+      - name: Open start page and two tabs
+        env:
+          WEBKIT_DISABLE_DMABUF_RENDERER: "1"
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          test "$(uname -m)" = aarch64
+          export XDG_DATA_HOME="$(mktemp -d)"
+          dbus-run-session -- xvfb-run -a linux/target/release/rust-browser-linux --smoke
+      - name: Assemble ARM64 archive
+        run: |
+          mkdir -p dist/Rectangle-Linux
+          install -m755 linux/target/release/rust-browser-linux dist/Rectangle-Linux/rectangle
+          install -m644 src/assets/PixelifySans-OFL.txt dist/Rectangle-Linux/
+          tar -C dist -czf dist/Rectangle-Linux-arm64.tar.gz Rectangle-Linux
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Rectangle-Linux-arm64
+          path: dist/Rectangle-Linux-arm64.tar.gz

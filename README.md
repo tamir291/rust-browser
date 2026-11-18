@@ -9,7 +9,7 @@ resource monitoring, themes, shortcut modules, and optional sing-box TUN.
 - **Windows x64:** extract the release ZIP and open `Rectangle.exe`. It uses
   the Windows WebView2 Runtime. Run the bundled `Install-TUN.ps1` from the
   extracted folder to install the optional core. TUN startup asks for UAC.
-- **Linux x86-64:** extract the tarball and run `rectangle`. Built on Ubuntu
+- **Linux x86-64 and ARM64:** extract the tarball and run `rectangle`. Built on Ubuntu
   24.04 with GTK 3 and WebKitGTK 4.1. Install `libgtk-3-0t64` and
   `libwebkit2gtk-4.1-0` on Ubuntu 24.04.
 - **Android 6.0+:** install the development-signed APK on a device with an

@@ -50,10 +50,18 @@ jobs:
           test -e /dev/kvm
           sudo chmod 666 /dev/kvm
           echo no | avdmanager create avd --force --name orbital --package 'system-images;android-34;google_apis;x86_64'
-          "$ANDROID_HOME/emulator/emulator" -avd orbital -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot > emulator.log 2>&1 &
+          adb start-server
+          "$ANDROID_HOME/emulator/emulator" -accel-check
+          "$ANDROID_HOME/emulator/emulator" -avd orbital -port 5554 -no-window -gpu swiftshader -feature -Vulkan -noaudio -no-boot-anim -no-snapshot -memory 2048 -cores 2 > emulator.log 2>&1 &
           emulator_pid=$!
-          trap 'kill "$emulator_pid" 2>/dev/null || true' EXIT
-          timeout 180 bash -c 'until [[ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" == 1 ]]; do sleep 3; done'
+          trap 'status=$?; if ((status)); then tail -n 100 emulator.log; adb devices -l; fi; kill "$emulator_pid" 2>/dev/null || true' EXIT
+          booted=0
+          for attempt in {1..90}; do
+            kill -0 "$emulator_pid" || exit 1
+            if [[ "$(adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)" == 1 ]]; then booted=1; break; fi
+            sleep 4
+          done
+          test "$booted" -eq 1
           adb shell input keyevent 82
           adb install dist/Rectangle-Android.apk
           adb shell am start -W -n dev.orbital.browser/.BrowserActivity
