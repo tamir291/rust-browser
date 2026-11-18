@@ -315,14 +315,10 @@ fn lookup(
     kind: RecordType,
     require_ad: bool,
 ) -> io::Result<(Vec<IpAddr>, u32)> {
-    let mut query = Message::new();
-    query
-        .set_id(1)
-        .set_message_type(MessageType::Query)
-        .set_op_code(OpCode::Query)
-        .set_recursion_desired(true)
-        .set_authentic_data(require_ad)
-        .add_query(Query::query(name.clone(), kind));
+    let mut query = Message::query();
+    query.metadata.recursion_desired = true;
+    query.metadata.authentic_data = require_ad;
+    query.add_query(Query::query(name.clone(), kind));
     let encoded = query.to_vec().map_err(io::Error::other)?;
     let length = u16::try_from(encoded.len()).map_err(io::Error::other)?;
     stream.write_all(&length.to_be_bytes())?;
@@ -331,13 +327,13 @@ fn lookup(
     let mut raw = vec![0; usize::from(u16::from_be_bytes(bytes(stream)?))];
     stream.read_exact(&mut raw)?;
     let answer = Message::from_vec(&raw).map_err(io::Error::other)?;
-    if answer.id() != query.id()
-        || answer.message_type() != MessageType::Response
-        || answer.op_code() != OpCode::Query
-        || answer.truncated()
-        || answer.queries() != query.queries()
-        || answer.response_code() != ResponseCode::NoError
-        || (require_ad && !answer.authentic_data())
+    if answer.metadata.id != query.metadata.id
+        || answer.metadata.message_type != MessageType::Response
+        || answer.metadata.op_code != OpCode::Query
+        || answer.metadata.truncation
+        || answer.queries != query.queries
+        || answer.metadata.response_code != ResponseCode::NoError
+        || (require_ad && !answer.metadata.authentic_data)
     {
         return Err(failure("DNS response rejected"));
     }
@@ -345,27 +341,27 @@ fn lookup(
     let mut ttl = 300;
     for _ in 0..16 {
         let alias = answer
-            .answers()
+            .answers
             .iter()
-            .find(|record| record.name() == canonical && matches!(record.data(), RData::CNAME(_)));
+            .find(|record| &record.name == canonical && matches!(&record.data, RData::CNAME(_)));
         if let Some(record) = alias {
-            let RData::CNAME(alias) = record.data() else {
+            let RData::CNAME(alias) = &record.data else {
                 unreachable!()
             };
             canonical = &alias.0;
-            ttl = ttl.min(record.ttl());
+            ttl = ttl.min(record.ttl);
         } else {
             let ips = answer
-                .answers()
+                .answers
                 .iter()
-                .filter(|record| record.name() == canonical)
+                .filter(|record| &record.name == canonical)
                 .filter_map(|record| {
-                    let ip = match (kind, record.data()) {
+                    let ip = match (kind, &record.data) {
                         (RecordType::A, RData::A(ip)) => IpAddr::V4(ip.0),
                         (RecordType::AAAA, RData::AAAA(ip)) => IpAddr::V6(ip.0),
                         _ => return None,
                     };
-                    ttl = ttl.min(record.ttl());
+                    ttl = ttl.min(record.ttl);
                     Some(ip)
                 })
                 .collect();
@@ -446,15 +442,13 @@ mod tests {
             let mut wire = vec![0; usize::from(size)];
             tls.read_exact(&mut wire).unwrap();
             let request = Message::from_vec(&wire).unwrap();
-            assert_eq!(request.queries()[0].name().to_ascii(), "orbital.test.");
-            let mut answer = Message::new();
+            assert_eq!(request.queries[0].name().to_ascii(), "orbital.test.");
+            let mut answer = Message::response(request.metadata.id, OpCode::Query);
+            answer.metadata.authentic_data = true;
             answer
-                .set_id(request.id())
-                .set_message_type(MessageType::Response)
-                .set_authentic_data(true)
-                .add_query(request.queries()[0].clone())
+                .add_query(request.queries[0].clone())
                 .add_answer(Record::from_rdata(
-                    request.queries()[0].name().clone(),
+                    request.queries[0].name().clone(),
                     60,
                     RData::A(A(Ipv4Addr::new(192, 0, 2, 80))),
                 ));
