@@ -1,6 +1,7 @@
 name: Android
 on:
   push:
+    branches: [main]
     paths:
       - android/**
       - src/start.html
@@ -43,13 +44,22 @@ jobs:
           yes | sdkmanager --licenses >/dev/null
           sdkmanager 'platform-tools' 'emulator' 'platforms;android-34' 'build-tools;36.0.0' 'system-images;android-34;google_apis;x86_64'
       - name: Build and verify APK
+        id: build
         run: bash android/build.sh
       - name: Test startup and tabs in emulator
         run: |
           set -euo pipefail
           test -e /dev/kvm
           sudo chmod 666 /dev/kvm
-          echo no | avdmanager create avd --force --name orbital --package 'system-images;android-34;google_apis;x86_64'
+          export ANDROID_USER_HOME="$RUNNER_TEMP/rectangle-android"
+          export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
+          export ANDROID_EMULATOR_HOME="$ANDROID_USER_HOME"
+          mkdir -p "$ANDROID_AVD_HOME"
+          avd="$ANDROID_AVD_HOME/orbital.avd"
+          echo no | avdmanager create avd --force --name orbital --path "$avd" --package 'system-images;android-34;google_apis;x86_64'
+          test -f "$avd/config.ini"
+          printf 'avd.ini.encoding=UTF-8\npath=%s\npath.rel=avd/orbital.avd\ntarget=android-34\n' "$avd" > "$ANDROID_AVD_HOME/orbital.ini"
+          "$ANDROID_HOME/emulator/emulator" -list-avds | grep -qx orbital
           adb start-server
           "$ANDROID_HOME/emulator/emulator" -accel-check
           "$ANDROID_HOME/emulator/emulator" -avd orbital -port 5554 -no-window -gpu swiftshader -feature -Vulkan -noaudio -no-boot-anim -no-snapshot -memory 2048 -cores 2 > emulator.log 2>&1 &
@@ -88,6 +98,7 @@ jobs:
           adb pull /sdcard/orbital-tabs.xml orbital-tabs.xml >/dev/null
           grep -q 'New tab' orbital-tabs.xml
       - uses: actions/upload-artifact@v4
+        if: ${{ always() && steps.build.outcome == 'success' }}
         with:
           name: Rectangle-Android-CI
           path: dist/Rectangle-Android.apk

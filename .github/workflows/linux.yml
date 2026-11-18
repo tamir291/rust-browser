@@ -1,6 +1,12 @@
 name: Linux
 on:
   push:
+    branches: [main]
+    paths:
+      - linux/**
+      - src/start.html
+      - src/assets/**
+      - .github/workflows/linux.yml
   workflow_dispatch:
 permissions:
   contents: read

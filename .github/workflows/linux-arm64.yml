@@ -1,6 +1,7 @@
 name: Linux ARM64
 on:
   push:
+    branches: [main]
     paths:
       - linux/**
       - src/start.html
