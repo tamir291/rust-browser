@@ -94,9 +94,13 @@ jobs:
           else:
               raise SystemExit("Tabs control missing")
           PY
-          adb shell uiautomator dump /sdcard/orbital-tabs.xml >/dev/null
-          adb pull /sdcard/orbital-tabs.xml orbital-tabs.xml >/dev/null
-          grep -q 'New tab' orbital-tabs.xml
+          for attempt in {1..6}; do
+            adb shell uiautomator dump /sdcard/orbital-tabs.xml >/dev/null &&
+              adb pull /sdcard/orbital-tabs.xml orbital-tabs.xml >/dev/null &&
+              grep -qi 'new tab' orbital-tabs.xml && break
+            sleep 2
+          done
+          grep -qi 'new tab' orbital-tabs.xml
       - uses: actions/upload-artifact@v4
         if: ${{ always() && steps.build.outcome == 'success' }}
         with:
